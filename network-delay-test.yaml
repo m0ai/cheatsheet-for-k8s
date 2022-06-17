@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-conf
+  namespace: yjchoi
+data:
+  default.conf: |-
+    server {
+      listen       80;
+      server_name  _;
+      location /echo_with_sleep {
+        default_type text/plain;
+        echo hello;
+        echo_flush;  # ensure the client can see previous output immediately
+        echo_sleep 30;  # in sec
+        echo world;
+      }
+      location / {
+        default_type text/plain;
+        echo "hello";
+      }
+    }
+  
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-debug
+  namespace: yjchoi
+spec:
+  selector:
+    matchLabels:
+      app: network-debug
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: network-debug
+    spec:
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: nginx-conf
+            items:
+              - key: default.conf
+                path: default.conf
+      containers:
+        - name: nginx-alpine
+          image: openresty/openresty:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: network-debug
+  namespace: yjchoi
+  labels:
+    app: network-debug
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+  selector:
+    app: network-debug
